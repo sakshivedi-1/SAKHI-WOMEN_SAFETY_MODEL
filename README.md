@@ -80,6 +80,10 @@ SAKHI_WOMEN_SAFETY_APP/
 Risk score is computed using:
 hybrid_score = Σ( feature_value * severity_weight * importance_weight )
 ## Installation
+git clone "project_link"
+
 pip install -r requirements.txt
+
 streamlit run app/app.py
+
 
