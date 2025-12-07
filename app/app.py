@@ -127,19 +127,52 @@ if page == "Risk Analytics":
 
 
 # =====================================================================
-# PAGE 2: GPS SAFETY NAVIGATION (MANUAL ONLY)
+# PAGE 2: GPS SAFETY NAVIGATION – SEARCH-ONLY MODE (NO MANUAL COORDINATES)
 # =====================================================================
 else:
     st.title("GPS-based Women Safety Navigation")
-    st.caption("Enter your location manually to find the nearest safe zone.")
+    st.caption("Search your area to check safety and navigate to the nearest safe zone.")
 
-    user_lat = st.number_input("Enter Latitude", value=28.6139, format="%.6f")
-    user_lon = st.number_input("Enter Longitude", value=77.2090, format="%.6f")
+    # -------------------------------
+    # SEARCH DROPDOWN FOR LOCATIONS
+    # -------------------------------
+    st.subheader("Select Your Location (Police Station Area)")
+    selected_area = st.selectbox(
+        "Choose a location:",
+        df["nm_pol"].unique(),
+        index=0
+    )
+
+    # Auto-fetch coordinates
+    user_row = df[df["nm_pol"] == selected_area].iloc[0]
+    user_lat = float(user_row["lat"])
+    user_lon = float(user_row["long"])
+
+    st.info(f"Selected Area: **{selected_area}**, Coordinates: ({user_lat:.5f}, {user_lon:.5f})")
 
     st.write("---")
 
+    # ============================
+    # SAFETY ANALYSIS BUTTON
+    # ============================
     if st.button("Analyse My Location"):
         nearest = find_nearest_location(df, user_lat, user_lon)
+        safe = find_nearest_safe_locations(df, user_lat, user_lon, top_n=3)
+
+        # STORE IN SESSION STATE
+        st.session_state["analysis_done"] = True
+        st.session_state["nearest"] = nearest
+        st.session_state["safe"] = safe
+        st.session_state["user_lat"] = user_lat
+        st.session_state["user_lon"] = user_lon
+
+    # ============================
+    # SHOW ANALYSIS RESULTS
+    # ============================
+    if st.session_state.get("analysis_done", False):
+
+        nearest = st.session_state["nearest"]
+        safe = st.session_state["safe"]
 
         st.subheader("Current Zone Assessment")
         st.write(
@@ -159,25 +192,40 @@ else:
         st.write("---")
 
         st.subheader("Nearest Safer Locations")
-        safe = find_nearest_safe_locations(df, user_lat, user_lon, top_n=3)
         st.dataframe(
             safe[["nm_pol", "area", "risk_level", "risk_score", "distance_km"]]
         )
 
+        # Best safe location
         dest = safe.iloc[0]
-        dest_lat, dest_lon = dest["lat"], dest["long"]
+        dest_lat = float(dest["lat"])
+        dest_lon = float(dest["long"])
+
+        st.session_state["dest_lat"] = dest_lat
+        st.session_state["dest_lon"] = dest_lon
 
         st.write("---")
         st.subheader("Generate Safe Route")
 
         routing_engine = st.radio("Routing Engine", ["OSMnx", "Mapbox"])
         mapbox_token = ""
+
         if routing_engine == "Mapbox":
             mapbox_token = st.text_input(
                 "Mapbox Token", value=os.getenv("MAPBOX_TOKEN", "")
             )
 
+        # ======================================
+        # ROUTE GENERATION BUTTON
+        # ======================================
         if st.button("Generate Route"):
+
+            user_lat = st.session_state["user_lat"]
+            user_lon = st.session_state["user_lon"]
+            dest_lat = st.session_state["dest_lat"]
+            dest_lon = st.session_state["dest_lon"]
+
+            st.session_state["route_generated"] = False
             route = None
 
             if routing_engine == "OSMnx":
@@ -190,11 +238,37 @@ else:
                 route = get_route_mapbox(user_lat, user_lon, dest_lat, dest_lon, mapbox_token)
 
             if route:
-                m = folium.Map(location=[user_lat, user_lon], zoom_start=14)
-                folium.Marker([user_lat, user_lon], icon=folium.Icon(color="blue")).add_to(m)
-                folium.Marker([dest_lat, dest_lon], icon=folium.Icon(color="green")).add_to(m)
-                folium.PolyLine(route, color="green", weight=5).add_to(m)
-                html(m._repr_html_(), height=600)
-                st.success("Route generated successfully!")
+                st.session_state["route_generated"] = True
+                st.session_state["route_coords"] = route
             else:
                 st.error("Failed to generate route.")
+
+    # ======================================
+    # SHOW ROUTE MAP
+    # ======================================
+    if st.session_state.get("route_generated", False):
+
+        route_coords = st.session_state["route_coords"]
+
+        m = folium.Map(
+            location=[st.session_state["user_lat"], st.session_state["user_lon"]],
+            zoom_start=14
+        )
+
+        # markers
+        folium.Marker(
+            [st.session_state["user_lat"], st.session_state["user_lon"]],
+            tooltip="Your Location",
+            icon=folium.Icon(color="blue")
+        ).add_to(m)
+
+        folium.Marker(
+            [st.session_state["dest_lat"], st.session_state["dest_lon"]],
+            tooltip="Safer Area",
+            icon=folium.Icon(color="green")
+        ).add_to(m)
+
+        folium.PolyLine(route_coords, color="green", weight=5).add_to(m)
+
+        html(m._repr_html_(), height=600)
+        st.success("Safe route generated successfully!")
