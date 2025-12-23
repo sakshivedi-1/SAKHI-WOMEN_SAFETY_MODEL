@@ -12,10 +12,6 @@ identifies unsafe zones, and provides safe navigation routes inside Delhi.
 - Visual analytics dashboard built with Streamlit & Folium
 
 
-![Project Demo](project_images/safeunsafe_place.png)
-
-
-
 ### Project Structure
 SAKHI_WOMEN_SAFETY_APP/
 
