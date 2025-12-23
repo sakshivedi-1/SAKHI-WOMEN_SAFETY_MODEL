@@ -64,6 +64,11 @@ SAKHI_WOMEN_SAFETY_APP/
 
 └── requirements.txt
 
+## Project Overview
+
+![Project Demo](project_images/final_safe_route.png)
+
+
 ###  Tech Stack
 - **Python**
 - **Streamlit**
